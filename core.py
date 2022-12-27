@@ -1,62 +1,14 @@
-import boto3
 import requests
 import json
 import os
-import sys
 from uuid import uuid4
-from fastapi import FastAPI, UploadFile, File
-from pydantic import BaseModel
+from fastapi import FastAPI, UploadFile, File, Depends
 import uvicorn
-
-BUCKET_NAME = 'labs-smart-contract-security-audit'
-CONTRACT_FOLDER = 'core-contracts'
-TEMP_FILE_NAME = 'temporary'
-TABLE_NAME = 'Smart-Contract-Audit'
-SLITHER_URL = 'http://127.0.0.1:8001'
-
-s3 = boto3.resource('s3')
-db = boto3.resource('dynamodb', region_name = 'us-east-2')
-
-class AuditRequest(BaseModel):
-    request_id: str
-    key: str
-
-def ensureTable():
-    dynamo_client = boto3.client('dynamodb', region_name = 'us-east-2')
-    existing_tables = dynamo_client.list_tables()['TableNames']
-    if TABLE_NAME not in existing_tables:
-        dynamo_client.create_table(
-            AttributeDefinitions = [
-                {
-                    'AttributeName': 'request_id',
-                    'AttributeType': 'S'
-                },
-                {
-                    'AttributeName': 'key',
-                    'AttributeType': 'S'
-                }
-            ],
-            KeySchema = [
-                {
-                    'AttributeName': 'request_id',
-                    'KeyType': 'HASH'
-                },
-                {
-                    'AttributeName': 'key',
-                    'KeyType': 'RANGE'
-                }
-            ],
-            ProvisionedThroughput = {
-                'ReadCapacityUnits': 5,
-                'WriteCapacityUnits': 5,
-            },
-            TableName = TABLE_NAME,
-        )
-
-"""def printfile(fileobj):
-    content = fileobj.read()
-    print(type(content))
-    print(str(content))"""
+from app.model import *
+from app.auth.auth_bearer import JWTBearer
+from app.auth.auth_handler import *
+from app.user import *
+from app.audit import *
 
 def savefile(fileobj):
     content = fileobj.read()
@@ -72,12 +24,24 @@ app = FastAPI()
 async def startup():
     ensureTable()
 
+@app.post('/signup')
+async def signup(data: UserSchema):
+    return userSignUp(data)
+
+@app.post('/login')
+async def login(data: UserLoginSchema):
+    return userLogin(data)
+
+
 @app.post('/uploadfile')
-async def upload_file(data : UploadFile):
+async def upload_file(data : UploadFile, auth:str = Depends(JWTBearer())):
     print(data.filename)
+    print(auth)
     file = data.file
     print(type(file))
     #printfile(file)
+    """Gather the email ID from the token"""
+    usermail = auth['usermail']
     """Generate a unique request ID for this request"""
     request_id = str(uuid4())
     filekey = request_id[:8] + str(data.filename)
@@ -90,6 +54,7 @@ async def upload_file(data : UploadFile):
     table = db.Table(TABLE_NAME)
     table.put_item(
         Item={
+            'usermail': usermail,
             'request_id' : request_id,
             'key' : filekey,
             'slither': 'awaited',
@@ -109,8 +74,8 @@ async def upload_file(data : UploadFile):
     """Update the table with slither response"""
     table.update_item(
         Key = {
+            'usermail': usermail,
             'request_id': request_id,
-            'key': filekey,
         },
         UpdateExpression = 'SET slither = :newslither',
         ExpressionAttributeValues = {
@@ -121,19 +86,15 @@ async def upload_file(data : UploadFile):
     return {"Filename" : data.filename, "Content Type" : data.content_type, "RequestID": request_id, "Key": filekey}
 
 @app.post('/results')
-async def fetchResults(data: AuditRequest):
-    table = db.Table(TABLE_NAME)
-    try:
-        fetchResponse = table.get_item(
-            Key = {
-                'request_id': data.request_id,
-                'key': data.key,
-            }
-        )
-        record = fetchResponse['Item']
-        return record
-    except BaseException as error:
-        return str(error)
+async def results(data: AuditRequest, auth: str = Depends(JWTBearer())):
+    usermail = auth['usermail']
+    return fetchResults(data = data, usermail= usermail)
+
+@app.get('/history')
+async def history(auth: str = Depends(JWTBearer())):
+    usermail = auth['usermail']
+    return fetchHistory(usermail)
+
 
 @app.get('/')
 async def default():
