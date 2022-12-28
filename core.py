@@ -3,12 +3,13 @@ import json
 import os
 from uuid import uuid4
 from fastapi import FastAPI, UploadFile, File, Depends
+from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 from app.model import *
 from app.auth.auth_bearer import JWTBearer
 from app.auth.auth_handler import *
-from app.user import *
-from app.audit import *
+from .app.user import *
+from .app.audit import *
 
 def savefile(fileobj):
     content = fileobj.read()
@@ -19,6 +20,15 @@ def savefile(fileobj):
         f.write(content)
 
 app = FastAPI()
+
+origins = ["*"]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins = origins,
+    allow_credentials = True,
+    allow_methods = ["*"],
+    allow_headers = ["*"]
+)
 
 @app.on_event('startup')
 async def startup():
