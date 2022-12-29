@@ -1,7 +1,7 @@
 import boto3
 
 BUCKET_NAME = 'labs-smart-contract-security-audit'
-CONTRACT_FOLDER = 'core-contracts'
+CONTRACT_FOLDER = 'solidity-contracts'
 TEMP_FILE_NAME = 'temporary'
 TABLE_NAME = 'Smart-Contract-Audit'
 USER_TABLE = 'Smart-Contract-Users'

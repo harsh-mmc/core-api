@@ -71,13 +71,16 @@ def userSignUp(data: UserSchema):
 
 def userLogin(data: UserLoginSchema):
     table = db.Table(USER_TABLE)
-    response = table.get_item(
-        Key = {
-            'usermail': data.email
-        }
-    )
-    item = response['Item']
-    if not item['password']==data.password:
-        return {'Error': 'Wrong Login Details'}
-    else :
-        return signJWT(data.email)
+    try:
+        response = table.get_item(
+            Key = {
+                'usermail': data.email
+            }
+        )
+        item = response['Item']
+        if not item['password']==data.password:
+            return {'Error': 'Wrong Login Details'}
+        else :
+            return signJWT(data.email)
+    except BaseException as error:
+        return f"Something went wrong while logging in, here's the error\n{error}"
