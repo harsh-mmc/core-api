@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 class Token(BaseModel):
     access_token: str
@@ -18,4 +18,4 @@ class Result(BaseModel):
     manticore: str
 
 class History(BaseModel):
-    history: list[Result]
+    history: list[Result] = Field(None)
