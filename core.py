@@ -8,8 +8,9 @@ import uvicorn
 from app.model import *
 from app.auth.auth_bearer import JWTBearer
 from app.auth.auth_handler import *
-from .app.user import *
-from .app.audit import *
+from app.user import *
+from app.audit import *
+from app.response import *
 
 def savefile(fileobj):
     content = fileobj.read()
@@ -21,7 +22,7 @@ def savefile(fileobj):
 
 app = FastAPI()
 
-origins = ["*"]
+origins = ["http://localhost:3000"]
 app.add_middleware(
     CORSMiddleware,
     allow_origins = origins,
@@ -38,12 +39,12 @@ async def startup():
 async def signup(data: UserSchema):
     return userSignUp(data)
 
-@app.post('/login')
+@app.post('/login', response_model=Token)
 async def login(data: UserLoginSchema):
     return userLogin(data)
 
 
-@app.post('/uploadfile')
+@app.post('/uploadfile', response_model=Uploaded)
 async def upload_file(data : UploadFile, auth:str = Depends(JWTBearer())):
     print(data.filename)
     print(auth)
@@ -93,14 +94,14 @@ async def upload_file(data : UploadFile, auth:str = Depends(JWTBearer())):
         }
     )
 
-    return {"Filename" : data.filename, "Content Type" : data.content_type, "RequestID": request_id, "Key": filekey}
+    return {"Filename" : data.filename, "Content_Type" : data.content_type, "RequestID": request_id, "Key": filekey}
 
-@app.post('/results')
+@app.post('/results', response_model=Result)
 async def results(data: AuditRequest, auth: str = Depends(JWTBearer())):
     usermail = auth['usermail']
     return fetchResults(data = data, usermail= usermail)
 
-@app.get('/history')
+@app.get('/history', response_model=History)
 async def history(auth: str = Depends(JWTBearer())):
     usermail = auth['usermail']
     return fetchHistory(usermail)

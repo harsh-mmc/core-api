@@ -9,9 +9,9 @@ def fetchHistory(usermail: str):
             KeyConditionExpression = Key('usermail').eq(usermail)
         )
         items = history['Items']
-        return items
+        return {"history": items}
     except BaseException as error:
-        return str(error)
+        return {"history": str(error)}
 
 def fetchResults(data: AuditRequest, usermail: str):
     table = db.Table(TABLE_NAME)
