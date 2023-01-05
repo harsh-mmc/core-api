@@ -6,6 +6,7 @@ TEMP_FILE_NAME = 'temporary'
 TABLE_NAME = 'Smart-Contract-Audit'
 USER_TABLE = 'Smart-Contract-Users'
 SLITHER_URL = 'http://127.0.0.1:8001'
+MYTHRIL_URL = 'http://127.0.0.1:8002'
 
 s3 = boto3.resource('s3')
 db = boto3.resource('dynamodb', region_name = 'us-east-2')
