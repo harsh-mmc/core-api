@@ -14,7 +14,8 @@ from app.user import *
 from app.audit import *
 from app.response import *
 
-def call_slither(filekey: str, table, usermail, request_id):
+def call_slither(filekey: str, usermail, request_id):
+    table = db.Table(TABLE_NAME)
     slither_output = ''
     try:
         slither_response = requests.post(f'{SLITHER_URL}/vulnerable', json={'contract_key' : filekey})
@@ -33,7 +34,8 @@ def call_slither(filekey: str, table, usermail, request_id):
         }
     )
 
-def call_mythril(filekey:str, table, usermail, request_id):
+def call_mythril(filekey:str, usermail, request_id):
+    table = db.Table(TABLE_NAME)
     mythril_output = ''
     try:
         mythril_response = requests.post(f'{MYTHRIL_URL}/vulnerable', json={'contract_key' : filekey})
@@ -124,8 +126,8 @@ async def upload_file(data : UploadFile, auth:str = Depends(JWTBearer())):
     )
 
     """Now send post requests to slither, mythril and manticore API"""
-    p1 = multiprocessing.Process(target=call_slither, args=(filekey, table, usermail, request_id))
-    p2 = multiprocessing.Process(target=call_slither, args=(filekey, table, usermail, request_id))
+    p1 = multiprocessing.Process(target=call_slither, args=(filekey, usermail, request_id))
+    p2 = multiprocessing.Process(target=call_mythril, args=(filekey, usermail, request_id))
     p1.start()
     p2.start()
     payload = {"Filename" : data.filename, "Content_Type" : data.content_type, "RequestID": request_id, "Key": filekey}
@@ -149,4 +151,4 @@ async def default():
     return 'server is running'
 
 if __name__ == '__main__':
-    uvicorn.run('core:app', port = 8000, reload=True)
+    uvicorn.run('core:app', port = 5000, reload=True)
