@@ -1,8 +1,10 @@
 import requests
 import json
 import os
+import multiprocessing
 from uuid import uuid4
 from fastapi import FastAPI, UploadFile, File, Depends
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 from app.model import *
@@ -11,6 +13,44 @@ from app.auth.auth_handler import *
 from app.user import *
 from app.audit import *
 from app.response import *
+
+def call_slither(filekey: str, table, usermail, request_id):
+    slither_output = ''
+    try:
+        slither_response = requests.post(f'{SLITHER_URL}/vulnerable', json={'contract_key' : filekey})
+        slither_output = json.dumps(slither_response.json())
+    except BaseException as error:
+        slither_output = f"Something went wrong, here's the error:\n{error}"
+    """Update the table with slither response"""
+    table.update_item(
+        Key = {
+            'usermail': usermail,
+            'request_id': request_id,
+        },
+        UpdateExpression = 'SET slither = :newslither',
+        ExpressionAttributeValues = {
+            ':newslither': slither_output
+        }
+    )
+
+def call_mythril(filekey:str, table, usermail, request_id):
+    mythril_output = ''
+    try:
+        mythril_response = requests.post(f'{MYTHRIL_URL}/vulnerable', json={'contract_key' : filekey})
+        mythril_output = json.dumps(mythril_response.json())
+    except BaseException as error:
+        mythril_output = f"Something went wrong, here's the error:\n{error}"
+    """Update the table with slither response"""
+    table.update_item(
+        Key = {
+            'usermail': usermail,
+            'request_id': request_id,
+        },
+        UpdateExpression = 'SET mythril = :newmythril',
+        ExpressionAttributeValues = {
+            ':newmythril': mythril_output
+        }
+    )
 
 def savefile(fileobj):
     content = fileobj.read()
@@ -43,6 +83,15 @@ async def signup(data: UserSchema):
 async def login(data: UserLoginSchema):
     return userLogin(data)
 
+"""@app.options('/uploadfile')
+async def handle():
+    msg = {"message": "success"}
+    headers = {
+        "Access-Control-Allow-Origin": "http://localhost:3000",
+        "Access-Control-Allow-Methods": ["*"],
+        "Access-Control-Allow-Headers": ["*"],
+    }
+    return JSONResponse(content=msg, headers=headers)"""
 
 @app.post('/uploadfile', response_model=Uploaded)
 async def upload_file(data : UploadFile, auth:str = Depends(JWTBearer())):
@@ -75,26 +124,14 @@ async def upload_file(data : UploadFile, auth:str = Depends(JWTBearer())):
     )
 
     """Now send post requests to slither, mythril and manticore API"""
-    slither_output = ''
-    try:
-        slither_response = requests.post(f'{SLITHER_URL}/vulnerable', json={'contract_key' : filekey})
-        slither_output = json.dumps(slither_response.json())
-    except BaseException as error:
-        slither_output = f"Something went wrong, here's the error:\n{error}"
-    
-    """Update the table with slither response"""
-    table.update_item(
-        Key = {
-            'usermail': usermail,
-            'request_id': request_id,
-        },
-        UpdateExpression = 'SET slither = :newslither',
-        ExpressionAttributeValues = {
-            ':newslither': slither_output
-        }
-    )
-
-    return {"Filename" : data.filename, "Content_Type" : data.content_type, "RequestID": request_id, "Key": filekey}
+    p1 = multiprocessing.Process(target=call_slither, args=(filekey, table, usermail, request_id))
+    p2 = multiprocessing.Process(target=call_slither, args=(filekey, table, usermail, request_id))
+    p1.start()
+    p2.start()
+    payload = {"Filename" : data.filename, "Content_Type" : data.content_type, "RequestID": request_id, "Key": filekey}
+    header = {'Access-Control-Allow-Origin': '*'}
+    #return JSONResponse(content=payload, headers=header)
+    return payload
 
 @app.post('/results', response_model=Result)
 async def results(data: AuditRequest, auth: str = Depends(JWTBearer())):
